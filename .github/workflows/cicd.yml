@@ -1,0 +1,62 @@
+name: Zip and Upload to S3, Update EC2, and Run Server
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  zip_and_upload:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up AWS CLI
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Zip project files
+      run: |
+        zip -r project.zip .  
+
+    - name: Upload ZIP file to S3
+      run: |
+        aws s3 cp project.zip s3://epam-task-bucket-1/fastapi/project.zip
+
+  # deploy_to_ec2:
+  #   runs-on: ubuntu-latest
+  #   needs: zip_and_upload 
+
+  #   steps:
+   
+  #   - name: Checkout code
+  #     uses: actions/checkout@v2
+
+  #   - name: SSH into EC2 and deploy the app
+  #     uses: appleboy/ssh-action@v0.1.5
+  #     with:
+  #       host: ${{ secrets.EC2_HOST }}  
+  #       username: ec2-user           
+  #       key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+  #       port: 22
+
+  #       script: |
+  #         rm -rf /path/to/your/app/*
+
+  #         aws s3 cp s3://your-bucket-name/your-destination-path/project.zip /path/to/your/app/project.zip
+
+  #         unzip /path/to/your/app/project.zip -d /path/to/your/app/
+
+  #         cd /path/to/your/app
+  #         python3 -m venv venv
+  #         source venv/bin/activate
+  #         pip install -r requirements.txt
+
+  #         nohup uvicorn main:app --host 0.0.0.0 --port 8000
+          
