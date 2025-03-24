@@ -3,7 +3,7 @@ name: Zip and Upload to S3, Update EC2, and Run Server
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 jobs:
