@@ -53,6 +53,8 @@ jobs:
           VENV_DIR="$APP_DIR/venv"
 
           mkdir -p $APP_DIR
+          sudo chown -R ec2-user:ec2-user $APP_DIR
+
           sudo rm -rf $APP_DIR/*
           cd $APP_DIR
 
