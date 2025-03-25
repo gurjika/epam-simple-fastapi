@@ -55,9 +55,10 @@ jobs:
           PID=$(pgrep -f "uvicorn app.main:app")
           if [ ! -z "$PID" ]; then
             echo "Stopping existing FastAPI server with PID: $PID"
-            kill $PID
+            sudo kill $PID
+            # Wait for the process to terminate gracefully (can retry up to 5 times)
             for i in {1..5}; do
-              if ! kill -0 $PID 2>/dev/null; then
+              if ! sudo kill -0 $PID 2>/dev/null; then
                 echo "FastAPI server stopped successfully."
                 break
               fi
