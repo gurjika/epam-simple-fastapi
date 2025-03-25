@@ -53,6 +53,15 @@ jobs:
             S3_PATH="fastapi/$ZIP_FILE"
             VENV_DIR="$APP_DIR/venv"
 
+            # Stop any running FastAPI/Uvicorn process
+            PID=$(pgrep -f "uvicorn app.main:app")
+            if [ ! -z "$PID" ]; then
+              echo "Stopping existing FastAPI server with PID: $PID"
+              kill -9 $PID
+            else
+              echo "No FastAPI server is currently running."
+            fi
+
             mkdir -p $APP_DIR
 
             sudo rm -rf $APP_DIR/*
