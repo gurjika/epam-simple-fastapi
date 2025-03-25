@@ -55,7 +55,7 @@ jobs:
 
             mkdir -p $APP_DIR
 
-            rm -rf $APP_DIR/*
+            sudo rm -rf $APP_DIR/*
             cd $APP_DIR
 
             aws s3 cp s3://$S3_BUCKET/$S3_PATH $APP_DIR/$ZIP_FILE
