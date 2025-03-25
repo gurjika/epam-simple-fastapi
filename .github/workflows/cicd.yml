@@ -61,7 +61,7 @@ jobs:
           aws s3 cp s3://$S3_BUCKET/$S3_PATH $APP_DIR/$ZIP_FILE
           unzip -o $APP_DIR/$ZIP_FILE -d $APP_DIR
 
-          docker compose down
-          docker compose up --build -d
+          sudo docker-compose down
+          sudo docker-compose up --build -d
 
 
