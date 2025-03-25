@@ -34,51 +34,54 @@ jobs:
     needs: zip_and_upload 
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Checkout code
-        uses: actions/checkout@v2
+    - name: SSH into EC2 and deploy the app
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.EC2_HOST }}  
+        username: ec2-user           
+        key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        port: 22
 
-      - name: SSH into EC2 and deploy the app
-        uses: appleboy/ssh-action@v0.1.5
-        with:
-          host: ${{ secrets.EC2_HOST }}  
-          username: ec2-user           
-          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          port: 22
+        script: |
+          APP_DIR="/home/ec2-user/app"
+          ZIP_FILE="project.zip"
+          S3_BUCKET="epam-task-bucket-1"
+          S3_PATH="fastapi/$ZIP_FILE"
+          VENV_DIR="$APP_DIR/venv"
 
-          script: |
-            APP_DIR="/home/ec2-user/app"
-            ZIP_FILE="project.zip"
-            S3_BUCKET="epam-task-bucket-1"
-            S3_PATH="fastapi/$ZIP_FILE"
-            VENV_DIR="$APP_DIR/venv"
+          PID=$(pgrep -f "uvicorn app.main:app")
+          if [ ! -z "$PID" ]; then
+            echo "Stopping existing FastAPI server with PID: $PID"
+            kill $PID
+            for i in {1..5}; do
+              if ! kill -0 $PID 2>/dev/null; then
+                echo "FastAPI server stopped successfully."
+                break
+              fi
+              echo "Waiting for FastAPI server to stop..."
+              sleep 2
+            done
+          else
+            echo "No FastAPI server is currently running."
+          fi
 
-            # Stop any running FastAPI/Uvicorn process
-            PID=$(pgrep -f "uvicorn app.main:app")
-            if [ ! -z "$PID" ]; then
-              echo "Stopping existing FastAPI server with PID: $PID"
-              kill $PID
-              # Wait for the process to terminate gracefully
-              sleep 5
-            else
-              echo "No FastAPI server is currently running."
-            fi
+          mkdir -p $APP_DIR
+          sudo rm -rf $APP_DIR/*
+          cd $APP_DIR
 
-            mkdir -p $APP_DIR
+          aws s3 cp s3://$S3_BUCKET/$S3_PATH $APP_DIR/$ZIP_FILE
+          unzip -o $APP_DIR/$ZIP_FILE -d $APP_DIR
 
-            sudo rm -rf $APP_DIR/*
-            cd $APP_DIR
+          python3 -m venv $VENV_DIR
+          source $VENV_DIR/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
-            aws s3 cp s3://$S3_BUCKET/$S3_PATH $APP_DIR/$ZIP_FILE
-            unzip -o $APP_DIR/$ZIP_FILE -d $APP_DIR
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 
-            python3 -m venv $VENV_DIR
-            source $VENV_DIR/bin/activate
+          sudo systemctl restart nginx
 
-            pip install --upgrade pip
-            pip install -r requirements.txt
-
-            nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > $APP_DIR/app.log 2>&1 &
-
-            sudo systemctl restart nginx
 
