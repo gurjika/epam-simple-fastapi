@@ -33,8 +33,7 @@ def main():
     token = get_session_token()
     if token:
         region = get_metadata(token, "placement/region")
-        print("Region:", region)
 
         availability_zone = get_metadata(token, "placement/availability-zone")
-        print("Availability Zone:", availability_zone)
+        return {"Availability Zone:", availability_zone, "Region:", region}
     
