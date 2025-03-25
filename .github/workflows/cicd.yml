@@ -52,23 +52,6 @@ jobs:
           S3_PATH="fastapi/$ZIP_FILE"
           VENV_DIR="$APP_DIR/venv"
 
-          PID=$(pgrep -f "uvicorn app.main:app")
-          if [ ! -z "$PID" ]; then
-            echo "Stopping existing FastAPI server with PID: $PID"
-            sudo kill $PID
-            # Wait for the process to terminate gracefully (can retry up to 5 times)
-            for i in {1..5}; do
-              if ! sudo kill -0 $PID 2>/dev/null; then
-                echo "FastAPI server stopped successfully."
-                break
-              fi
-              echo "Waiting for FastAPI server to stop..."
-              sleep 2
-            done
-          else
-            echo "No FastAPI server is currently running."
-          fi
-
           mkdir -p $APP_DIR
           sudo rm -rf $APP_DIR/*
           cd $APP_DIR
@@ -76,13 +59,7 @@ jobs:
           aws s3 cp s3://$S3_BUCKET/$S3_PATH $APP_DIR/$ZIP_FILE
           unzip -o $APP_DIR/$ZIP_FILE -d $APP_DIR
 
-          python3 -m venv $VENV_DIR
-          source $VENV_DIR/bin/activate
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-
-          sudo systemctl restart nginx
+          docker compose down
+          docker compose up --build -d
 
 
