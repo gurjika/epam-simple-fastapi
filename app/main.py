@@ -6,7 +6,7 @@ app = FastAPI()
 
 @app.get('/home')
 def get_home():
-    return {"detail": "EC2 seems to Work FINE"}
+    return {"detail": "EC2 seems to Work FINE NOw"}
 
 def get_session_token():
     url = "http://169.254.169.254/latest/api/token"
