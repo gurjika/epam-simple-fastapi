@@ -57,7 +57,9 @@ jobs:
             PID=$(pgrep -f "uvicorn app.main:app")
             if [ ! -z "$PID" ]; then
               echo "Stopping existing FastAPI server with PID: $PID"
-              kill -9 $PID
+              kill $PID
+              # Wait for the process to terminate gracefully
+              sleep 5
             else
               echo "No FastAPI server is currently running."
             fi
