@@ -14,6 +14,7 @@ from botocore.exceptions import NoCredentialsError
  
 s3 = boto3.client("s3")
 AWS_BUCKET_NAME = 'epam-task-bucket-1'
+FOLDER_NAME = "uploads/"
 
 
 models.Base.metadata.create_all(bind=engine)
@@ -107,15 +108,14 @@ def main():
     
 
 
-app = FastAPI()
-
 @app.post("/upload/")
 async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
-        s3.upload_fileobj(file.file, AWS_BUCKET_NAME, file.filename)
-
+        file_path = FOLDER_NAME + file.filename
+        s3.upload_fileobj(file.file, AWS_BUCKET_NAME, file_path)
+        
         metadata = models.ImageMetadata(
-            filename=file.filename,
+            filename=file_path,
             content_type=file.content_type,
             size=file.size
         )
@@ -123,7 +123,7 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
         db.commit()
         db.refresh(metadata)
 
-        return {"message": "File uploaded successfully", "filename": file.filename}
+        return {"message": "File uploaded successfully", "filename": file_path}
     except NoCredentialsError:
         raise HTTPException(status_code=403, detail="Invalid AWS credentials")
     except Exception as e:
@@ -132,43 +132,47 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
 @app.get("/download/{filename}")
 def download_image(filename: str):
     try:
+        file_path = FOLDER_NAME + filename
         url = s3.generate_presigned_url(
-            "get_object", Params={"Bucket": AWS_BUCKET_NAME, "Key": filename}, ExpiresIn=3600
+            "get_object", Params={"Bucket": AWS_BUCKET_NAME, "Key": file_path}, ExpiresIn=3600
         )
         return {"url": url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/metadata/{filename}")
-def get_metadata(filename: str):
+def get_metadata(filename: str, db: Session = Depends(get_db)):
     try:
-        response = s3.head_object(Bucket=AWS_BUCKET_NAME, Key=filename)
-        return {"metadata": response}
+        file_path = FOLDER_NAME + filename
+        metadata = db.query(models.ImageMetadata).filter(models.ImageMetadata.filename == file_path).first()
+        if metadata is None:
+            raise HTTPException(status_code=404, detail="Metadata not found in database")
+        return {"metadata": metadata}
     except Exception as e:
-        raise HTTPException(status_code=404, detail="File not found or error fetching metadata")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/metadata/random")
-def get_random_metadata():
+def get_random_metadata(db: Session = Depends(get_db)):
     try:
-        objects = s3.list_objects_v2(Bucket=AWS_BUCKET_NAME)
-        if "Contents" not in objects:
-            raise HTTPException(status_code=404, detail="No files in the bucket")
-        random_file = random.choice(objects["Contents"])["Key"]
-        response = s3.head_object(Bucket=AWS_BUCKET_NAME, Key=random_file)
-        return {"filename": random_file, "metadata": response}
+        metadata_list = db.query(models.ImageMetadata).all()
+        if not metadata_list:
+            raise HTTPException(status_code=404, detail="No metadata found in database")
+        random_metadata = random.choice(metadata_list)
+        return {"filename": random_metadata.filename, "metadata": random_metadata}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/delete/{filename}")
 def delete_image(filename: str, db: Session = Depends(get_db)):
     try:
-        s3.delete_object(Bucket=AWS_BUCKET_NAME, Key=filename)
-
-        metadata = db.query(models.ImageMetadata).filter(models.ImageMetadata.filename == filename).first()
+        file_path = FOLDER_NAME + filename
+        s3.delete_object(Bucket=AWS_BUCKET_NAME, Key=file_path)
+        
+        metadata = db.query(models.ImageMetadata).filter(models.ImageMetadata.filename == file_path).first()
         if metadata:
             db.delete(metadata)
             db.commit()
         
-        return {"message": "File deleted successfully", "filename": filename}
+        return {"message": "File and metadata deleted successfully", "filename": file_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
