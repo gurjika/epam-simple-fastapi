@@ -29,39 +29,39 @@ jobs:
       run: |
         aws s3 cp project.zip s3://epam-task-bucket-1/fastapi/project.zip
 
-  deploy_to_ec2:
-    runs-on: ubuntu-latest
-    needs: zip_and_upload 
+  # deploy_to_ec2:
+  #   runs-on: ubuntu-latest
+  #   needs: zip_and_upload 
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v2
 
-    - name: SSH into EC2 and deploy the app
-      uses: appleboy/ssh-action@v0.1.5
-      with:
-        host: ${{ secrets.EC2_HOST }}  
-        username: ec2-user           
-        key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-        port: 22
+  #   - name: SSH into EC2 and deploy the app
+  #     uses: appleboy/ssh-action@v0.1.5
+  #     with:
+  #       host: ${{ secrets.EC2_HOST }}  
+  #       username: ec2-user           
+  #       key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+  #       port: 22
 
-        script: |
-          APP_DIR="/home/ec2-user/app"
-          ZIP_FILE="project.zip"
-          S3_BUCKET="epam-task-bucket-1"
-          S3_PATH="fastapi/$ZIP_FILE"
-          VENV_DIR="$APP_DIR/venv"
+  #       script: |
+  #         APP_DIR="/home/ec2-user/app"
+  #         ZIP_FILE="project.zip"
+  #         S3_BUCKET="epam-task-bucket-1"
+  #         S3_PATH="fastapi/$ZIP_FILE"
+  #         VENV_DIR="$APP_DIR/venv"
 
-          mkdir -p $APP_DIR
-          sudo chown -R ec2-user:ec2-user $APP_DIR
+  #         mkdir -p $APP_DIR
+  #         sudo chown -R ec2-user:ec2-user $APP_DIR
 
-          sudo rm -rf $APP_DIR/*
-          cd $APP_DIR
+  #         sudo rm -rf $APP_DIR/*
+  #         cd $APP_DIR
 
-          aws s3 cp s3://$S3_BUCKET/$S3_PATH $APP_DIR/$ZIP_FILE
-          unzip -o $APP_DIR/$ZIP_FILE -d $APP_DIR
+  #         aws s3 cp s3://$S3_BUCKET/$S3_PATH $APP_DIR/$ZIP_FILE
+  #         unzip -o $APP_DIR/$ZIP_FILE -d $APP_DIR
 
-          sudo docker-compose down
-          sudo docker-compose up --build -d
+  #         sudo docker-compose down
+  #         sudo docker-compose up --build -d
 
 
