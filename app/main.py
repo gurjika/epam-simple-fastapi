@@ -1,14 +1,19 @@
-from fastapi import FastAPI
+import random
 import requests
 from typing import Optional, List
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, UploadFile, File, status
 from fastapi.params import Body
 from pydantic import BaseModel
 from . import models
 from app.db import engine, get_db
 from sqlalchemy.orm import Session
 from .schemas import PostCreate, PostResponse
+import boto3
+from botocore.exceptions import NoCredentialsError
+
  
+s3 = boto3.client("s3")
+AWS_BUCKET_NAME = 'epam-task-bucket-1'
 
 
 models.Base.metadata.create_all(bind=engine)
@@ -100,3 +105,70 @@ def main():
         availability_zone = get_metadata(token, "placement/availability-zone")
         return {"Availability Zone": availability_zone, "Region": region}
     
+
+
+app = FastAPI()
+
+@app.post("/upload/")
+async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    try:
+        s3.upload_fileobj(file.file, AWS_BUCKET_NAME, file.filename)
+
+        metadata = models.ImageMetadata(
+            filename=file.filename,
+            content_type=file.content_type,
+            size=file.size
+        )
+        db.add(metadata)
+        db.commit()
+        db.refresh(metadata)
+
+        return {"message": "File uploaded successfully", "filename": file.filename}
+    except NoCredentialsError:
+        raise HTTPException(status_code=403, detail="Invalid AWS credentials")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/download/{filename}")
+def download_image(filename: str):
+    try:
+        url = s3.generate_presigned_url(
+            "get_object", Params={"Bucket": AWS_BUCKET_NAME, "Key": filename}, ExpiresIn=3600
+        )
+        return {"url": url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/metadata/{filename}")
+def get_metadata(filename: str):
+    try:
+        response = s3.head_object(Bucket=AWS_BUCKET_NAME, Key=filename)
+        return {"metadata": response}
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="File not found or error fetching metadata")
+
+@app.get("/metadata/random")
+def get_random_metadata():
+    try:
+        objects = s3.list_objects_v2(Bucket=AWS_BUCKET_NAME)
+        if "Contents" not in objects:
+            raise HTTPException(status_code=404, detail="No files in the bucket")
+        random_file = random.choice(objects["Contents"])["Key"]
+        response = s3.head_object(Bucket=AWS_BUCKET_NAME, Key=random_file)
+        return {"filename": random_file, "metadata": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/delete/{filename}")
+def delete_image(filename: str, db: Session = Depends(get_db)):
+    try:
+        s3.delete_object(Bucket=AWS_BUCKET_NAME, Key=filename)
+
+        metadata = db.query(models.ImageMetadata).filter(models.ImageMetadata.filename == filename).first()
+        if metadata:
+            db.delete(metadata)
+            db.commit()
+        
+        return {"message": "File deleted successfully", "filename": filename}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

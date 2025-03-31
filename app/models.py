@@ -12,3 +12,10 @@ class Post(Base):
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
 
     
+class ImageMetadata(Base):
+    __tablename__ = "image_metadata"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String, unique=True, index=True)
+    content_type = Column(String)
+    size = Column(Integer)
