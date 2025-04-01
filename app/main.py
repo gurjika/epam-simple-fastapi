@@ -14,8 +14,10 @@ from .schemas import PostCreate, PostResponse
 import boto3
 from botocore.exceptions import NoCredentialsError
 from contextlib import asynccontextmanager
-
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
  
+
 s3 = boto3.client("s3")
 AWS_BUCKET_NAME = 'epam-task-bucket-1'
 FOLDER_NAME = "uploads/"
@@ -25,8 +27,43 @@ SQS_QUEUE_URL = 'https://sqs.eu-west-1.amazonaws.com/010526243843/epam-sqs'
 sns_client = boto3.client("sns", region_name=AWS_REGION)
 sqs_client = boto3.client("sqs", region_name=AWS_REGION)
 
+
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
+
+
+
+scheduler = BackgroundScheduler()
+
+
+
+async def process_sqs_messages():
+    while True:
+        response = sqs_client.receive_message(QueueUrl=SQS_QUEUE_URL, MaxNumberOfMessages=10, WaitTimeSeconds=5)
+        print("executed")
+        if "Messages" in response:
+            for message in response["Messages"]:
+                body = json.loads(message["Body"])
+                notification = (f"An image has been uploaded:\n"
+                                f"Name: {body['filename']}\n"
+                                f"Size: {body['size']} bytes\n"
+                                f"Extension: {body['extension']}\n"
+                                f"Download: {body['download_url']}")
+                sns_client.publish(TopicArn=SNS_TOPIC_ARN, Message=notification)
+                sqs_client.delete_message(QueueUrl=SQS_QUEUE_URL, ReceiptHandle=message["ReceiptHandle"])
+        await asyncio.sleep(30)
+
+
+
+scheduler.add_job(
+    process_sqs_messages,
+    trigger=IntervalTrigger(seconds=30),
+    id="sqs",  
+    replace_existing=True
+)
+
+scheduler.start()
+
 
 
 def validate_post(post):
@@ -219,27 +256,3 @@ def unsubscribe(email: str):
 
 
 
-async def process_sqs_messages():
-    while True:
-        response = sqs_client.receive_message(QueueUrl=SQS_QUEUE_URL, MaxNumberOfMessages=10, WaitTimeSeconds=5)
-        print("executed")
-        if "Messages" in response:
-            for message in response["Messages"]:
-                body = json.loads(message["Body"])
-                notification = (f"An image has been uploaded:\n"
-                                f"Name: {body['filename']}\n"
-                                f"Size: {body['size']} bytes\n"
-                                f"Extension: {body['extension']}\n"
-                                f"Download: {body['download_url']}")
-                sns_client.publish(TopicArn=SNS_TOPIC_ARN, Message=notification)
-                sqs_client.delete_message(QueueUrl=SQS_QUEUE_URL, ReceiptHandle=message["ReceiptHandle"])
-        await asyncio.sleep(30)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    task = asyncio.create_task(process_sqs_messages())  # Start background task
-    yield  # Application runs here
-    task.cancel()  # Cleanup when the app shuts down
-
-app = FastAPI(lifespan=lifespan)
