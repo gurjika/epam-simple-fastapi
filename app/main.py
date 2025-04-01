@@ -39,13 +39,13 @@ def process_sqs_messages():
     print(f"published sqs messages to sns {datetime.now()}")
     if "Messages" in response:
         for message in response["Messages"]:
+            body = json.loads(message["Body"])
             attributes = {
                 'imageExtension': {
                     'DataType': 'String',
                     'StringValue': body['extension']
                 }
             }
-            body = json.loads(message["Body"])
             notification = (f"An image has been uploaded:\n"
                             f"Name: {body['filename']}\n"
                             f"Size: {body['size']} bytes\n"
@@ -244,7 +244,7 @@ def subscribe(email: str):
         Protocol="email",
         Endpoint=email,
         Attributes={
-            'FilterPolicy': '{"imageExtension":["png"]}'
+            'FilterPolicy': '{"imageExtension":[".png"]}'
         }
     )
     return {"message": "Subscription request sent", "subscription_arn": response["SubscriptionArn"]}
