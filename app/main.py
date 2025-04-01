@@ -149,7 +149,7 @@ def main():
 @app.post("/upload/")
 async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
-        file_size = file.spool_max_size
+        file_size = file.size
         file_path = FOLDER_NAME + file.filename
         s3.upload_fileobj(file.file, AWS_BUCKET_NAME, file_path)
         
