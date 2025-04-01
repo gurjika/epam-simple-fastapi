@@ -39,13 +39,19 @@ def process_sqs_messages():
     print(f"published sqs messages to sns {datetime.now()}")
     if "Messages" in response:
         for message in response["Messages"]:
+            attributes = {
+                'imageExtension': {
+                    'DataType': 'String',
+                    'StringValue': body['extension']
+                }
+            }
             body = json.loads(message["Body"])
             notification = (f"An image has been uploaded:\n"
                             f"Name: {body['filename']}\n"
                             f"Size: {body['size']} bytes\n"
                             f"Extension: {body['extension']}\n"
                             f"Download: {body['download_url']}")
-            sns_client.publish(TopicArn=SNS_TOPIC_ARN, Message=notification)
+            sns_client.publish(TopicArn=SNS_TOPIC_ARN, Message=notification, MessageAttributes=attributes)
             sqs_client.delete_message(QueueUrl=SQS_QUEUE_URL, ReceiptHandle=message["ReceiptHandle"])
 
 scheduler.add_job(
