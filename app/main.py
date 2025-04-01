@@ -1,22 +1,19 @@
-import asyncio
 import json
 import os
 import random
 import requests
-from typing import Optional, List
+from typing import List
 from fastapi import Depends, FastAPI, HTTPException, UploadFile, File, status
-from fastapi.params import Body
-from pydantic import BaseModel
 from . import models
 from app.db import engine, get_db
 from sqlalchemy.orm import Session
 from .schemas import PostCreate, PostResponse
 import boto3
 from botocore.exceptions import NoCredentialsError
-from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
- 
+from datetime import datetime 
+
 
 s3 = boto3.client("s3")
 AWS_BUCKET_NAME = 'epam-task-bucket-1'
@@ -37,23 +34,19 @@ scheduler = BackgroundScheduler()
 
 
 
-async def process_sqs_messages():
-    while True:
-        response = sqs_client.receive_message(QueueUrl=SQS_QUEUE_URL, MaxNumberOfMessages=10, WaitTimeSeconds=5)
-        print("executed")
-        if "Messages" in response:
-            for message in response["Messages"]:
-                body = json.loads(message["Body"])
-                notification = (f"An image has been uploaded:\n"
-                                f"Name: {body['filename']}\n"
-                                f"Size: {body['size']} bytes\n"
-                                f"Extension: {body['extension']}\n"
-                                f"Download: {body['download_url']}")
-                sns_client.publish(TopicArn=SNS_TOPIC_ARN, Message=notification)
-                sqs_client.delete_message(QueueUrl=SQS_QUEUE_URL, ReceiptHandle=message["ReceiptHandle"])
-        await asyncio.sleep(30)
-
-
+def process_sqs_messages():
+    response = sqs_client.receive_message(QueueUrl=SQS_QUEUE_URL, MaxNumberOfMessages=10, WaitTimeSeconds=5)
+    print(f"published sqs messages to sns {datetime.now()}")
+    if "Messages" in response:
+        for message in response["Messages"]:
+            body = json.loads(message["Body"])
+            notification = (f"An image has been uploaded:\n"
+                            f"Name: {body['filename']}\n"
+                            f"Size: {body['size']} bytes\n"
+                            f"Extension: {body['extension']}\n"
+                            f"Download: {body['download_url']}")
+            sns_client.publish(TopicArn=SNS_TOPIC_ARN, Message=notification)
+            sqs_client.delete_message(QueueUrl=SQS_QUEUE_URL, ReceiptHandle=message["ReceiptHandle"])
 
 scheduler.add_job(
     process_sqs_messages,
@@ -156,6 +149,7 @@ def main():
 @app.post("/upload/")
 async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
+        file_size = file.spool_max_size
         file_path = FOLDER_NAME + file.filename
         s3.upload_fileobj(file.file, AWS_BUCKET_NAME, file_path)
         
@@ -171,7 +165,7 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
 
         message = {
             "filename": file.filename,
-            "size": file.file.tell(),
+            "size": file_size,
             "extension": os.path.splitext(file.filename)[-1],
             "download_url": f"https://{AWS_BUCKET_NAME}.s3.amazonaws.com/{file_path}"
         }
@@ -194,6 +188,7 @@ def download_image(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/metadata/{filename}")
 def get_metadata(filename: str, db: Session = Depends(get_db)):
     try:
@@ -205,6 +200,7 @@ def get_metadata(filename: str, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/metadata/random")
 def get_random_metadata(db: Session = Depends(get_db)):
     try:
@@ -215,6 +211,7 @@ def get_random_metadata(db: Session = Depends(get_db)):
         return {"filename": random_metadata.filename, "metadata": random_metadata}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.delete("/delete/{filename}")
 def delete_image(filename: str, db: Session = Depends(get_db)):
@@ -234,9 +231,7 @@ def delete_image(filename: str, db: Session = Depends(get_db)):
 
 
 
-
-
-@app.post("/subscribe/")
+@app.post("/subscribe/{email}")
 def subscribe(email: str):
     response = sns_client.subscribe(
         TopicArn=SNS_TOPIC_ARN,
@@ -245,7 +240,7 @@ def subscribe(email: str):
     )
     return {"message": "Subscription request sent", "subscription_arn": response["SubscriptionArn"]}
 
-@app.post("/unsubscribe/")
+@app.post("/unsubscribe/{email}")
 def unsubscribe(email: str):
     subscriptions = sns_client.list_subscriptions_by_topic(TopicArn=SNS_TOPIC_ARN)["Subscriptions"]
     sub_arn = next((sub["SubscriptionArn"] for sub in subscriptions if sub["Endpoint"] == email), None)
