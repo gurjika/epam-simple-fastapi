@@ -1,3 +1,6 @@
+import asyncio
+import json
+import os
 import random
 import requests
 from typing import Optional, List
@@ -10,12 +13,17 @@ from sqlalchemy.orm import Session
 from .schemas import PostCreate, PostResponse
 import boto3
 from botocore.exceptions import NoCredentialsError
+from contextlib import asynccontextmanager
 
  
 s3 = boto3.client("s3")
 AWS_BUCKET_NAME = 'epam-task-bucket-1'
 FOLDER_NAME = "uploads/"
-
+AWS_REGION = 'eu-west-1'
+SNS_TOPIC_ARN = 'arn:aws:sns:eu-west-1:010526243843:epam-sns-topic'
+SQS_QUEUE_URL = 'https://sqs.eu-west-1.amazonaws.com/010526243843/epam-sqs'
+sns_client = boto3.client("sns", region_name=AWS_REGION)
+sqs_client = boto3.client("sqs", region_name=AWS_REGION)
 
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
@@ -123,6 +131,15 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
         db.commit()
         db.refresh(metadata)
 
+
+        message = {
+            "filename": file.filename,
+            "size": file.file.tell(),
+            "extension": os.path.splitext(file.filename)[-1],
+            "download_url": f"https://{AWS_BUCKET_NAME}.s3.amazonaws.com/{file_path}"
+        }
+        sqs_client.send_message(QueueUrl=SQS_QUEUE_URL, MessageBody=json.dumps(message))
+
         return {"message": "File uploaded successfully", "filename": file_path}
     except NoCredentialsError:
         raise HTTPException(status_code=403, detail="Invalid AWS credentials")
@@ -176,3 +193,53 @@ def delete_image(filename: str, db: Session = Depends(get_db)):
         return {"message": "File and metadata deleted successfully", "filename": file_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+
+
+@app.post("/subscribe/")
+def subscribe(email: str):
+    response = sns_client.subscribe(
+        TopicArn=SNS_TOPIC_ARN,
+        Protocol="email",
+        Endpoint=email
+    )
+    return {"message": "Subscription request sent", "subscription_arn": response["SubscriptionArn"]}
+
+@app.post("/unsubscribe/")
+def unsubscribe(email: str):
+    subscriptions = sns_client.list_subscriptions_by_topic(TopicArn=SNS_TOPIC_ARN)["Subscriptions"]
+    sub_arn = next((sub["SubscriptionArn"] for sub in subscriptions if sub["Endpoint"] == email), None)
+    if sub_arn:
+        sns_client.unsubscribe(SubscriptionArn=sub_arn)
+        return {"message": "Unsubscribed successfully"}
+    raise HTTPException(status_code=404, detail="Email not found in subscriptions")
+
+
+
+async def process_sqs_messages():
+    while True:
+        response = sqs_client.receive_message(QueueUrl=SQS_QUEUE_URL, MaxNumberOfMessages=10, WaitTimeSeconds=5)
+        print("executed")
+        if "Messages" in response:
+            for message in response["Messages"]:
+                body = json.loads(message["Body"])
+                notification = (f"An image has been uploaded:\n"
+                                f"Name: {body['filename']}\n"
+                                f"Size: {body['size']} bytes\n"
+                                f"Extension: {body['extension']}\n"
+                                f"Download: {body['download_url']}")
+                sns_client.publish(TopicArn=SNS_TOPIC_ARN, Message=notification)
+                sqs_client.delete_message(QueueUrl=SQS_QUEUE_URL, ReceiptHandle=message["ReceiptHandle"])
+        await asyncio.sleep(30)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(process_sqs_messages())  # Start background task
+    yield  # Application runs here
+    task.cancel()  # Cleanup when the app shuts down
+
+app = FastAPI(lifespan=lifespan)
