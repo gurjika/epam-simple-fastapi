@@ -242,7 +242,10 @@ def subscribe(email: str):
     response = sns_client.subscribe(
         TopicArn=SNS_TOPIC_ARN,
         Protocol="email",
-        Endpoint=email
+        Endpoint=email,
+        Attributes={
+            'FilterPolicy': '{"imageExtension":["png"]}'
+        }
     )
     return {"message": "Subscription request sent", "subscription_arn": response["SubscriptionArn"]}
 
