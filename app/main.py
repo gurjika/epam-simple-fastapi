@@ -34,34 +34,34 @@ scheduler = BackgroundScheduler()
 
 
 
-def process_sqs_messages():
-    response = sqs_client.receive_message(QueueUrl=SQS_QUEUE_URL, MaxNumberOfMessages=10, WaitTimeSeconds=5)
-    print(f"published sqs messages to sns {datetime.now()}")
-    if "Messages" in response:
-        for message in response["Messages"]:
-            body = json.loads(message["Body"])
-            attributes = {
-                'imageExtension': {
-                    'DataType': 'String',
-                    'StringValue': body['extension']
-                }
-            }
-            notification = (f"An image has been uploaded:\n"
-                            f"Name: {body['filename']}\n"
-                            f"Size: {body['size']} bytes\n"
-                            f"Extension: {body['extension']}\n"
-                            f"Download: {body['download_url']}")
-            sns_client.publish(TopicArn=SNS_TOPIC_ARN, Message=notification, MessageAttributes=attributes)
-            sqs_client.delete_message(QueueUrl=SQS_QUEUE_URL, ReceiptHandle=message["ReceiptHandle"])
+# def process_sqs_messages():
+#     response = sqs_client.receive_message(QueueUrl=SQS_QUEUE_URL, MaxNumberOfMessages=10, WaitTimeSeconds=5)
+#     print(f"published sqs messages to sns {datetime.now()}")
+#     if "Messages" in response:
+#         for message in response["Messages"]:
+#             body = json.loads(message["Body"])
+#             attributes = {
+#                 'imageExtension': {
+#                     'DataType': 'String',
+#                     'StringValue': body['extension']
+#                 }
+#             }
+#             notification = (f"An image has been uploaded:\n"
+#                             f"Name: {body['filename']}\n"
+#                             f"Size: {body['size']} bytes\n"
+#                             f"Extension: {body['extension']}\n"
+#                             f"Download: {body['download_url']}")
+#             sns_client.publish(TopicArn=SNS_TOPIC_ARN, Message=notification, MessageAttributes=attributes)
+#             sqs_client.delete_message(QueueUrl=SQS_QUEUE_URL, ReceiptHandle=message["ReceiptHandle"])
 
-scheduler.add_job(
-    process_sqs_messages,
-    trigger=IntervalTrigger(seconds=30),
-    id="sqs",  
-    replace_existing=True
-)
+# scheduler.add_job(
+#     process_sqs_messages,
+#     trigger=IntervalTrigger(seconds=30),
+#     id="sqs",  
+#     replace_existing=True
+# )
 
-scheduler.start()
+# scheduler.start()
 
 
 
