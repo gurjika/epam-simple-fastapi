@@ -260,3 +260,18 @@ def unsubscribe(email: str):
 
 
 
+@app.get('/get-consistent')
+def get_consistent():
+    lambda_client = boto3.client('lambda', region_name='eu-west-1')
+    lambda_function_name = 'lambda-with-zip'
+
+    event_data = {'detail-type': 'WEB APP'}
+    response = lambda_client.invoke(
+        FunctionName=lambda_function_name,  
+        InvocationType='RequestResponse',   
+        Payload=json.dumps(event_data)        
+    )
+
+    response_payload = json.loads(response['Payload'].read().decode('utf-8'))
+
+    return {'response': response_payload}
