@@ -1,7 +1,7 @@
 version: 0.0
 os: linux
 files:
-  - source: s3://epam-task-bucket-1/fastapi/project.zip
+  - source: ./
     destination: /home/ec2-user/app
     overwrite: true 
 
