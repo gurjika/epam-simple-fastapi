@@ -119,7 +119,7 @@ def update_post(post: PostCreate, id: int, db: Session = Depends(get_db)):
 
 @app.get('/home')
 def get_home():
-    return {"detail": "EC2 seems to Work FINE NOw"}
+    return {"detail": "EC2 seems to Work FINE NOW WITH CICD"}
 
 def get_session_token():
     url = "http://169.254.169.254/latest/api/token"
