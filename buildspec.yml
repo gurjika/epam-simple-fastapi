@@ -1,0 +1,36 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - echo "Installing dependencies..."
+      - pip install --upgrade pip
+      - pip install -r requirements.txt
+
+  pre_build:
+    commands:
+      - echo "Running pre-build checks..."
+
+  build:
+    commands:
+      - echo "Checking if FastAPI app runs without errors..."
+      # Start app in background with timeout to test if it boots without crashing
+      - |
+        python -m uvicorn main:app --host 127.0.0.1 --port 8000 &
+        APP_PID=$!
+        echo "Waiting a few seconds to verify FastAPI starts successfully..."
+        sleep 5
+        if ps -p $APP_PID > /dev/null
+        then
+          echo "FastAPI app started successfully!"
+          kill $APP_PID
+        else
+          echo "FastAPI app failed to start."
+          exit 1
+        fi
+
+artifacts:
+  files:
+    - '**/*'
