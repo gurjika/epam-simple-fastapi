@@ -1,0 +1,21 @@
+version: 0.0
+os: linux
+files:
+  - source: s3://epam-task-bucket-1/fastapi/project.zip
+    destination: /home/ec2-user/app
+
+hooks:
+  BeforeInstall:
+    - location: scripts/install_dependencies.sh
+      timeout: 600
+      runas: ec2-user
+
+  AfterInstall:
+    - location: scripts/unzip_and_build.sh
+      timeout: 600
+      runas: ec2-user
+
+  ApplicationStart:
+    - location: scripts/start_server.sh
+      timeout: 600
+      runas: ec2-user
