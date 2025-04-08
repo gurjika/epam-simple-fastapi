@@ -18,7 +18,7 @@ phases:
       - echo "Checking if FastAPI app runs without errors..."
       # Start app in background with timeout to test if it boots without crashing
       - |
-        python -m uvicorn main:app --host 127.0.0.1 --port 8000 &
+        python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 &
         APP_PID=$!
         echo "Waiting a few seconds to verify FastAPI starts successfully..."
         sleep 5
