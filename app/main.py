@@ -20,7 +20,7 @@ AWS_BUCKET_NAME = 'epam-task-bucket-1'
 FOLDER_NAME = "uploads/"
 AWS_REGION = 'eu-west-1'
 SNS_TOPIC_ARN = 'arn:aws:sns:eu-west-1:010526243843:epam-sns-topic'
-SQS_QUEUE_URL = 'https://sqs.eu-west-1.amazonaws.com/010526243843/epam-sqs'
+SQS_QUEUE_URL = 'https://sqs.eu-west-1.amazonaws.com/010526243843/epam-sqs-lambda'
 sns_client = boto3.client("sns", region_name=AWS_REGION)
 sqs_client = boto3.client("sqs", region_name=AWS_REGION)
 
