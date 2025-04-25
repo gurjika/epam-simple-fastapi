@@ -5,6 +5,10 @@ It allows users to upload images, save their metadata in a database (Amazon RDS)
 
 ---
 
+## Architecture Visualization
+
+![Fastapi](media/fastapi.jpg)
+
 ## 🛠 Architecture Overview
 
 - **FastAPI** app running on EC2 instances behind an **Auto Scaling Group** and **Elastic Load Balancer** (ALB).
