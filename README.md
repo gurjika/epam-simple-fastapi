@@ -7,7 +7,7 @@ It allows users to upload images, save their metadata in a database (Amazon RDS)
 
 ## Architecture Visualization
 
-![Fastapi](media/fastapi.jpg)
+![Fastapi](media/fastapi1.jpg)
 
 ## 🛠 Architecture Overview
 
